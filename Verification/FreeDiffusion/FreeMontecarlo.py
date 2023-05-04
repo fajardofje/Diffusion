@@ -23,12 +23,8 @@ from math import e
 #X_w = -9.06e-6 #water susceptibility
 DeltaX = 0.1e-6#X_g - X_w #3.e-8 Susceptibility change
 nel = 2048 #pixels per side (64 to 256 acording to Pathak et al (2008). 1024 acording to Han et al. (2011))
-domain = np.load('structure_1.npy')  #internal domain
-maskout = np.load('outmask_1.npy') #mask to extract extraaxonal data
-maskin = np.load('intmask_1.npy') #mask to extract intraaxonal data
-DeltaB = np.load('DeltaB_1.npy') #DeltaBfield
-Gx = np.load('gradx_1.npy') #X Gradient
-Gy = np.load('grady_1.npy') #Y Gradient
+domain =  np.zeros((nel,nel))
+
 Xlen = 1000.e-6 #domain side lenght in m
 Ylen = Xlen
 Delta = Xlen/nel #Voxel Size (m)
@@ -40,58 +36,13 @@ PhiB0 = 0. #Rotation of bundle in x-y plane
 B0mag = 9. #Main external field magnitude
 B0 = np.cos(Theta)*B0mag*np.asarray([1., 0.]) #Main external field direction
 
-'''
-################################################
-#"FAKE" GAUSSIAN MAGNETIC DATA
-mu = np.mean(DeltaB.flatten())
-sigma = np.std(DeltaB.flatten())
-DeltaB = np.random.normal(mu, sigma, len(DeltaB)**2)
-DeltaB = np.reshape(DeltaB, (nel, nel))
-################################################
-'''
-DeltaBG1 = np.zeros((nel,nel), dtype = float) #G1 Primitive
-G0 = np.zeros((nel,nel), dtype = float)
-DeltaBG0 = np.copy(DeltaB)
+
+
 sigma = 0.05#T/m 0.03 to 0.04
 muu = Xlen/2
 
-gradient = 0.1 #T/m
-for i in range(nel):
-    DeltaBG1[i,:] = (gradient*i*Delta) - (gradient*nel*Delta)/2 
-
-DeltaBG2 = np.flip(DeltaB, 0) #Primitiva de G2. Flip revierte el gradiente para tener el pulso volteado
-G0 = np.gradient(DeltaBG0)[0]/Delta
-G1 = np.gradient(DeltaBG1)[0]/Delta
-G2 = np.gradient(DeltaBG2)[0]/Delta
 
 
-'''
-fig, ax = plt.subplots()
-cs = ax.imshow(DeltaB.T, cmap='hot', interpolation='nearest') #domfield/(DeltaX*B0mag)
-cbar = fig.colorbar(cs)
-#cbar.mappable.set_clim(-np.max(DeltaB),np.max(DeltaB))
-plt.show()  
-
-
-#1D field plots
-x = np.linspace(0.,Xlen,nel)
-plt.plot(x,(G1[:,int(len(G0)/2)]), '--b', label='$\Delta$B (T/m)') #x*1e3
-plt.xlabel('distance (mm)')
-plt.ylabel('Gradient (T/m)')
-plt.legend()
-plt.show()
-
-print(np.std(G0.flatten()))
-import math
-w = 10e-6
-m = 500#math.ceil((G0.max() - G0.min())/w)
-plt.hist( G0.flatten(), bins = m,  density = True,  color='k', label='G0', alpha = 0.3)#bins=int(1+3.322*np.log(len(gradx[np.nonzero(gradx)].flatten())))
-#plt.hist( DeltaBG0.flatten(), bins = m,  density = True,  color='r', label='$\Delta$B', alpha = 0.3)#range=(-5,5),
-#plt.xlim(-5.,5.)
-plt.legend()
-plt.show()   
-###############################################
-'''
 
 #Spin variables
 gamma = 267.5e6 #rad/T (giromagnetic ratio)
@@ -101,19 +52,11 @@ D0 = 0.7e-9 #m2/s = um2/ms
 porc = 20 #spin each porc in water
 nesp = 0 #number of intraaxon pixels
 nesps = 10000
-xcoord = np.random.randint(len(domain)/4,3*len(domain)/4,nesps)
-ycoord = np.random.randint(len(domain)/4,3*len(domain)/4,nesps)
+xcoord = np.random.randint(nel/4,3*nel/4,nesps)
+ycoord = np.random.randint(nel/4,3*nel/4,nesps)
 
 count = 0
-'''    
-for i in range(0, len(DeltaBG1), porc): #Loop for counting & generating spins in water
-    if i%100 == 0:
-        print('Spins ',100*porc*count/(len(DeltaB)),' % placed')
-    xcoord.append(xcoord[i])
-    ycoord.append(ycoord[i])
-    nesp += 1
-    count += 1
-'''    
+
 xcoord = np.asarray(xcoord, dtype = int) #These are in index units
 ycoord = np.asarray(ycoord, dtype = int)
 
@@ -133,7 +76,7 @@ xcoordhist[0] = xcoord #These are in index units too
 ycoordhist[0] = ycoord
 
 #These 2 are for visualization purposes only
-Traject1 = np.copy(DeltaB) #trajectories array over field
+Traject1 = np.copy(domain) #trajectories array over field
 Traject2 = np.copy(domain) #trajectories array over field
 
 count = 0
@@ -142,8 +85,7 @@ for i in range(int(TE//Deltat)): #Loop for counting inner spin phases
     if i%1000 == 0:
         print('Spin phases ',100*count/(int(TE//Deltat)),' % calculated')
     #Place the spins in the distorted field
-    innerfields = DeltaB[xcoordhist[i-1], ycoordhist[i-1]] 
-    spinsphases[i] = spinsphases[i-1] + gamma*innerfields*Deltat
+
     #np.random.seed(semilla+i)
     xcoord_f += np.random.normal(0., np.sqrt(2*Deltat*D0), len(xcoord_f)) #Position updates (These are in floats to not-forget the previous exact location)
     #np.random.seed(semilla+i+1)
